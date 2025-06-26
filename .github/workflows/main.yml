@@ -11,12 +11,12 @@ jobs:
       DEVICE_NAME: oneplus_ace5
       REPO_MANIFEST: oneplus_ace5.xml
       KERNEL_SUFFIX: -android14-GHA
-      ENABLE_KPM: true
-      ENABLE_LZ4KD: true
+      ENABLE_KPM: "true"
+      ENABLE_LZ4KD: "true"
       CCACHE_MAXSIZE: 8G
 
     steps:
-      - name: Checkout (dummy, required by Actions)
+      - name: Checkout (dummy)
         uses: actions/checkout@v4
 
       - name: Install dependencies
@@ -62,6 +62,7 @@ jobs:
           cd KernelSU
           KSU_VERSION=$(expr $(git rev-list --count main) + 10700)
           sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile
+          echo "KSU_VERSION=$KSU_VERSION" >> $GITHUB_ENV
 
       - name: Setup susfs and patches
         run: |
@@ -162,16 +163,16 @@ jobs:
           rm -f ./AnyKernel3/push.sh
           cp ~/kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image ./AnyKernel3/
           cd AnyKernel3
-          zip -r "../AnyKernel3_${DEVICE_NAME}_${KERNEL_SUFFIX}_SuKiSu.zip" ./*
+          zip -r "../AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_SuKiSu.zip" ./*
 
       - name: Upload kernel zip artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AnyKernel3_${{ env.DEVICE_NAME }}_${{ env.KERNEL_SUFFIX }}_SuKiSu
-          path: AnyKernel3_${{ env.DEVICE_NAME }}_${{ env.KERNEL_SUFFIX }}_SuKiSu.zip
+          name: AnyKernel3_${{ env.DEVICE_NAME }}_SuKiSu
+          path: AnyKernel3_${{ env.DEVICE_NAME }}_SuKiSu.zip
 
       - name: Upload Image artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Image_${{ env.DEVICE_NAME }}_${{ env.KERNEL_SUFFIX }}
+          name: Image_${{ env.DEVICE_NAME }}
           path: kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image
