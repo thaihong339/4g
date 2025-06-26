@@ -1,0 +1,177 @@
+name: Build OnePlus Ace 5 Kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    env:
+      DEVICE_NAME: oneplus_ace5
+      REPO_MANIFEST: oneplus_ace5.xml
+      KERNEL_SUFFIX: -android14-GHA
+      ENABLE_KPM: true
+      ENABLE_LZ4KD: true
+      CCACHE_MAXSIZE: 8G
+
+    steps:
+      - name: Checkout (dummy, required by Actions)
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 git curl ccache flex bison libssl-dev libelf-dev bc zip build-essential
+
+      - name: Setup ccache
+        run: |
+          export CCACHE_DIR=$HOME/.ccache_${DEVICE_NAME}
+          mkdir -p "$CCACHE_DIR"
+          ccache -M $CCACHE_MAXSIZE
+
+      - name: Download repo tool
+        run: |
+          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo > ~/repo
+          chmod a+x ~/repo
+          sudo mv ~/repo /usr/local/bin/repo
+
+      - name: Sync kernel source
+        run: |
+          mkdir -p ~/kernel_workspace
+          cd ~/kernel_workspace
+          repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8650 -m $REPO_MANIFEST --depth=1
+          repo sync -c -j$(nproc) --no-tags
+
+      - name: Clean dirty tags and ABI protections
+        run: |
+          cd ~/kernel_workspace/kernel_platform
+          for d in common msm-kernel; do
+            rm $d/android/abi_gki_protected_exports_* 2>/dev/null || true
+          done
+          for f in common/scripts/setlocalversion msm-kernel/scripts/setlocalversion external/dtc/scripts/setlocalversion; do
+            sed -i 's/ -dirty//g' $f
+            grep -q 'res=.*s/-dirty' $f || sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' $f
+            sed -i '$s|echo "\$res"|echo "${KERNEL_SUFFIX}"|' $f
+          done
+
+      - name: Setup SukiSU
+        run: |
+          cd ~/kernel_workspace/kernel_platform
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
+          cd KernelSU
+          KSU_VERSION=$(expr $(git rev-list --count main) + 10700)
+          sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile
+
+      - name: Setup susfs and patches
+        run: |
+          cd ~/kernel_workspace
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1 || true
+          git clone https://github.com/Xiaomichael/kernel_patches.git || true
+          git clone https://github.com/SukiSU-Ultra/SukiSU_patch.git || true
+          cd kernel_workspace/kernel_platform
+          cp ../../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./common/
+          cp ../../kernel_patches/next/syscall_hooks.patch ./common/
+          cp ../../susfs4ksu/kernel_patches/fs/* ./common/fs/
+          cp ../../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
+          if [[ "${{ env.ENABLE_LZ4KD }}" == "true" ]]; then
+            cp ../../kernel_patches/001-lz4.patch ./common/
+            cp ../../kernel_patches/lz4armv8.S ./common/lib
+            cp ../../kernel_patches/002-zstd.patch ./common/
+          fi
+          cd common
+          patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch || true
+          cp ../../kernel_patches/69_hide_stuff.patch ./
+          patch -p1 -F 3 < 69_hide_stuff.patch
+          patch -p1 -F 3 < syscall_hooks.patch
+          if [[ "${{ env.ENABLE_LZ4KD }}" == "true" ]]; then
+            git apply -p1 < 001-lz4.patch || true
+            patch -p1 < 002-zstd.patch || true
+          fi
+
+      - name: Add SUSFS config
+        run: |
+          cd ~/kernel_workspace/kernel_platform
+          DEFCONFIG=./common/arch/arm64/configs/gki_defconfig
+          cat <<EOF >> "$DEFCONFIG"
+          CONFIG_KSU=y
+          CONFIG_KSU_SUSFS_SUS_SU=n
+          CONFIG_KSU_MANUAL_HOOK=y
+          CONFIG_KSU_SUSFS=y
+          CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
+          CONFIG_KSU_SUSFS_SUS_PATH=y
+          CONFIG_KSU_SUSFS_SUS_MOUNT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
+          CONFIG_KSU_SUSFS_SUS_KSTAT=y
+          CONFIG_KSU_SUSFS_SUS_OVERLAYFS=n
+          CONFIG_KSU_SUSFS_TRY_UMOUNT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y
+          CONFIG_KSU_SUSFS_SPOOF_UNAME=y
+          CONFIG_KSU_SUSFS_ENABLE_LOG=y
+          CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
+          CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
+          CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+          CONFIG_TCP_CONG_ADVANCED=y
+          CONFIG_TCP_CONG_BBR=y
+          CONFIG_NET_SCH_FQ=y
+          CONFIG_TCP_CONG_BIC=n
+          CONFIG_TCP_CONG_WESTWOOD=n
+          CONFIG_TCP_CONG_HTCP=n
+          EOF
+          if [[ "${{ env.ENABLE_KPM }}" == "true" ]]; then
+            echo "CONFIG_KPM=y" >> "$DEFCONFIG"
+          fi
+          sed -i 's/check_defconfig//' ./common/build.config.gki
+
+      - name: Build kernel
+        run: |
+          cd ~/kernel_workspace/kernel_platform/common
+          export CLANG_PATH=~/kernel_workspace/kernel_platform/prebuilts/clang/host/linux-x86/clang-r487747c/bin
+          export RUSTC_PATH=~/kernel_workspace/kernel_platform/prebuilts/rust/linux-x86/1.73.0b/bin/rustc
+          export PAHOLE_PATH=~/kernel_workspace/kernel_platform/prebuilts/kernel-build-tools/linux-x86/bin/pahole
+          export PATH="$CLANG_PATH:/usr/lib/ccache:$PATH"
+          make LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC=clang \
+            RUSTC="$RUSTC_PATH" \
+            PAHOLE="$PAHOLE_PATH" \
+            LD=ld.lld HOSTLD=ld.lld \
+            O=out KCFLAGS+=-O2 \
+            CONFIG_LTO_CLANG=y CONFIG_LTO_CLANG_THIN=y CONFIG_LTO_CLANG_FULL=n CONFIG_LTO_NONE=n \
+            gki_defconfig
+          make -j$(nproc) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC=clang \
+            RUSTC="$RUSTC_PATH" \
+            PAHOLE="$PAHOLE_PATH" \
+            LD=ld.lld HOSTLD=ld.lld \
+            O=out KCFLAGS+=-O2 Image
+
+      - name: Apply KPM patch (if enabled)
+        if: env.ENABLE_KPM == 'true'
+        run: |
+          cd ~/kernel_workspace/kernel_platform/common/out/arch/arm64/boot
+          curl -LO https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.12.0/patch_linux
+          chmod +x patch_linux
+          ./patch_linux
+          rm -f Image
+          mv oImage Image
+
+      - name: Package with AnyKernel3
+        run: |
+          cd ~
+          git clone -q https://github.com/thaihong339/AnyKernel3.git
+          rm -rf ./AnyKernel3/.git
+          rm -f ./AnyKernel3/push.sh
+          cp ~/kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image ./AnyKernel3/
+          cd AnyKernel3
+          zip -r "../AnyKernel3_${DEVICE_NAME}_${KERNEL_SUFFIX}_SuKiSu.zip" ./*
+
+      - name: Upload kernel zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnyKernel3_${{ env.DEVICE_NAME }}_${{ env.KERNEL_SUFFIX }}_SuKiSu
+          path: AnyKernel3_${{ env.DEVICE_NAME }}_${{ env.KERNEL_SUFFIX }}_SuKiSu.zip
+
+      - name: Upload Image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image_${{ env.DEVICE_NAME }}_${{ env.KERNEL_SUFFIX }}
+          path: kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image
