@@ -237,7 +237,7 @@ fi
 
 info "Creating AnyKernel3 package..."
 cd "$WORKSPACE" || error "Failed to return to workspace"
-git clone -q https://github.com/thaihong339/idk.git --depth=1 || info "AnyKernel3 already exists"
+git clone -q https://github.com/thaihong339/AnyKernel3.git --depth=1 || info "AnyKernel3 already exists"
 rm -rf ./AnyKernel3/.git
 rm -f ./AnyKernel3/push.sh
 cp "$KERNEL_WORKSPACE/kernel_platform/common/out/arch/arm64/boot/Image" ./AnyKernel3/ || error "Failed to copy Image"
