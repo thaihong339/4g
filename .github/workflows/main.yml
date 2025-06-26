@@ -83,6 +83,10 @@ jobs:
           cp ../../kernel_patches/next/syscall_hooks.patch ./common/ || true
           cp ../../susfs4ksu/kernel_patches/fs/* ./common/fs/ || true
           cp ../../susfs4ksu/include/linux/susfs.h ./common/include/linux/ || true
+          if [[ ! -f ./common/include/linux/susfs.h ]]; then
+            echo "::error ::susfs.h not found after copy! Build cannot continue."
+            exit 1
+          fi
           if [[ "${{ env.ENABLE_LZ4KD }}" == "true" ]]; then
             cp ../../kernel_patches/001-lz4.patch ./common/ || true
             cp ../../kernel_patches/lz4armv8.S ./common/lib || true
@@ -97,8 +101,6 @@ jobs:
             git apply -p1 < 001-lz4.patch || true
             patch -p1 < 002-zstd.patch || true
           fi
-          # Debug: List susfs.h to confirm copy
-          ls -l ./include/linux/susfs.h || echo "susfs.h not found"
 
       - name: Add SUSFS config
         run: |
