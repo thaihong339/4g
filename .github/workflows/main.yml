@@ -14,62 +14,65 @@ jobs:
       ENABLE_KPM: "true"
       ENABLE_LZ4KD: "true"
       CCACHE_MAXSIZE: 8G
+      WORKSPACE: ${{ github.workspace }}/kernel_oneplus_ace5
 
     steps:
-      - name: Checkout (dummy step, not used for kernel source)
-        uses: actions/checkout@v4
-
       - name: Install dependencies
         run: |
+          set -e
           sudo apt update
           sudo apt install -y python3 git curl ccache flex bison libssl-dev libelf-dev bc zip
 
       - name: Set up ccache
         run: |
-          export CCACHE_DIR=$HOME/.ccache_${{ env.DEVICE_NAME }}
+          set -e
+          export CCACHE_DIR=$HOME/.ccache_${DEVICE_NAME}
           mkdir -p "$CCACHE_DIR"
-          ccache -M ${{ env.CCACHE_MAXSIZE }}
+          ccache -M $CCACHE_MAXSIZE
 
       - name: Configure Git
         run: |
+          set -e
           git config --global user.name "Builder"
           git config --global user.email "builder@example.com"
 
       - name: Install repo tool
         run: |
+          set -e
           curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo > ~/repo
           chmod a+x ~/repo
           sudo mv ~/repo /usr/local/bin/repo
 
       - name: Prepare workspace
         run: |
-          export WORKSPACE=$HOME/kernel_${{ env.DEVICE_NAME }}
-          mkdir -p "$WORKSPACE"
-          cd "$WORKSPACE"
-          mkdir -p kernel_workspace
+          set -e
+          mkdir -p "$WORKSPACE/kernel_workspace"
 
       - name: Repo init and sync
         run: |
-          export WORKSPACE=$HOME/kernel_${{ env.DEVICE_NAME }}
+          set -e
           cd "$WORKSPACE/kernel_workspace"
-          repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8650 -m ${{ env.REPO_MANIFEST }} --depth=1
+          repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8650 -m $REPO_MANIFEST --depth=1
           repo sync -c -j$(nproc) --no-tags
 
       - name: Clean dirty tags and ABI protections
         run: |
-          cd $HOME/kernel_${{ env.DEVICE_NAME }}/kernel_workspace/kernel_platform
+          set -e
+          cd $WORKSPACE/kernel_workspace/kernel_platform
           for d in common msm-kernel; do
             rm $d/android/abi_gki_protected_exports_* 2>/dev/null || true
           done
           for f in common/scripts/setlocalversion msm-kernel/scripts/setlocalversion external/dtc/scripts/setlocalversion; do
             sed -i 's/ -dirty//g' "$f"
             grep -q 'res=.*s/-dirty' "$f" || sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' "$f"
-            sed -i '$s|echo "\$res"|echo "${{ env.KERNEL_SUFFIX }}"|' "$f"
+            sed -i '$s|echo "\$res"|echo "${KERNEL_SUFFIX}"|' "$f"
           done
 
       - name: Set up SukiSU
+        id: ksuversion
         run: |
-          cd $HOME/kernel_${{ env.DEVICE_NAME }}/kernel_workspace/kernel_platform
+          set -e
+          cd $WORKSPACE/kernel_workspace/kernel_platform
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
           cd KernelSU
           KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) "+" 10700)
@@ -78,7 +81,8 @@ jobs:
 
       - name: Set up susfs and patches
         run: |
-          cd $HOME/kernel_${{ env.DEVICE_NAME }}/kernel_workspace
+          set -e
+          cd $WORKSPACE/kernel_workspace
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1 || true
           git clone https://github.com/Xiaomichael/kernel_patches.git || true
           git clone https://github.com/SukiSU-Ultra/SukiSU_patch.git || true
@@ -87,7 +91,7 @@ jobs:
           cp ../kernel_patches/next/syscall_hooks.patch ./common/
           cp ../susfs4ksu/kernel_patches/fs/* ./common/fs/
           cp ../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
-          if [ "${{ env.ENABLE_LZ4KD }}" == "true" ]; then
+          if [ "${ENABLE_LZ4KD}" == "true" ]; then
             cp ../kernel_patches/001-lz4.patch ./common/
             cp ../kernel_patches/lz4armv8.S ./common/lib
             cp ../kernel_patches/002-zstd.patch ./common/
@@ -97,14 +101,15 @@ jobs:
           cp ../../kernel_patches/69_hide_stuff.patch ./
           patch -p1 -F 3 < 69_hide_stuff.patch
           patch -p1 -F 3 < syscall_hooks.patch
-          if [ "${{ env.ENABLE_LZ4KD }}" == "true" ]; then
+          if [ "${ENABLE_LZ4KD}" == "true" ]; then
             git apply -p1 < 001-lz4.patch || true
             patch -p1 < 002-zstd.patch || true
           fi
 
       - name: Add SUSFS config
         run: |
-          DEFCONFIG=$HOME/kernel_${{ env.DEVICE_NAME }}/kernel_workspace/kernel_platform/common/arch/arm64/configs/gki_defconfig
+          set -e
+          DEFCONFIG=$WORKSPACE/kernel_workspace/kernel_platform/common/arch/arm64/configs/gki_defconfig
           cat <<EOF >> "$DEFCONFIG"
 CONFIG_KSU=y
 CONFIG_KSU_SUSFS_SUS_SU=n
@@ -132,11 +137,12 @@ CONFIG_TCP_CONG_WESTWOOD=n
 CONFIG_TCP_CONG_HTCP=n
 EOF
           echo "CONFIG_KPM=y" >> "$DEFCONFIG"
-          sed -i 's/check_defconfig//' $HOME/kernel_${{ env.DEVICE_NAME }}/kernel_workspace/kernel_platform/common/build.config.gki
+          sed -i 's/check_defconfig//' $WORKSPACE/kernel_workspace/kernel_platform/common/build.config.gki
 
       - name: Build kernel
         run: |
-          export KERNEL_WORKSPACE=$HOME/kernel_${{ env.DEVICE_NAME }}/kernel_workspace
+          set -e
+          export KERNEL_WORKSPACE=$WORKSPACE/kernel_workspace
           export CLANG_PATH="$KERNEL_WORKSPACE/kernel_platform/prebuilts/clang/host/linux-x86/clang-r487747c/bin"
           export RUSTC_PATH="$KERNEL_WORKSPACE/kernel_platform/prebuilts/rust/linux-x86/1.73.0b/bin/rustc"
           export PAHOLE_PATH="$KERNEL_WORKSPACE/kernel_platform/prebuilts/kernel-build-tools/linux-x86/bin/pahole"
@@ -158,7 +164,8 @@ EOF
       - name: Apply KPM patch
         if: env.ENABLE_KPM == 'true'
         run: |
-          cd $HOME/kernel_${{ env.DEVICE_NAME }}/kernel_workspace/kernel_platform/common/out/arch/arm64/boot
+          set -e
+          cd $WORKSPACE/kernel_workspace/kernel_platform/common/out/arch/arm64/boot
           curl -LO https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.12.0/patch_linux
           chmod +x patch_linux
           ./patch_linux
@@ -167,14 +174,14 @@ EOF
 
       - name: Package with AnyKernel3
         run: |
-          export WORKSPACE=$HOME/kernel_${{ env.DEVICE_NAME }}
+          set -e
           cd "$WORKSPACE"
           git clone https://github.com/thaihong339/AnyKernel3.git --depth=1 || true
           rm -rf ./AnyKernel3/.git
           rm -f ./AnyKernel3/push.sh
-          cp "$HOME/kernel_${{ env.DEVICE_NAME }}/kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image" ./AnyKernel3/
+          cp "$WORKSPACE/kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image" ./AnyKernel3/
           cd AnyKernel3
-          zip -r "AnyKernel3_${{ env.KSU_VERSION }}_${{ env.DEVICE_NAME }}_SuKiSu.zip" ./*
+          zip -r "AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_SuKiSu.zip" ./*
 
       - name: Upload AnyKernel3 zip
         uses: actions/upload-artifact@v4
