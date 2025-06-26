@@ -245,14 +245,17 @@ cp "$KERNEL_WORKSPACE/kernel_platform/common/out/arch/arm64/boot/Image" ./AnyKer
 cd AnyKernel3 || error "Failed to enter AnyKernel3 directory"
 zip -r "AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_${KERNEL_SUFFIX}_SuKiSu.zip" ./* || error "Packaging failed"
 
-OUTPUT_DIR="C:/Kernel_Build/${DEVICE_NAME}"
+# Create output directory on Windows C: drive (via WSL)
+OUTPUT_DIR="/mnt/c/Kernel_Build/${DEVICE_NAME}"
 mkdir -p "$OUTPUT_DIR" || error "Failed to create output directory"
 
-cp "$KERNEL_WORKSPACE/kernel_platform/common/out/arch/arm64/boot/Image" "$OUTPUT_DIR/"
-cp "$WORKSPACE/AnyKernel3/AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_${KERNEL_SUFFIX}_SuKiSu.zip" "$OUTPUT_DIR/"
+# Copy Image and AnyKernel3 package to Windows C: drive
+cp "$KERNEL_WORKSPACE/kernel_platform/common/out/arch/arm64/boot/Image" "$OUTPUT_DIR/" || error "Failed to copy Image to C drive"
+cp "$WORKSPACE/AnyKernel3/AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_${KERNEL_SUFFIX}_SuKiSu.zip" "$OUTPUT_DIR/" || error "Failed to copy zip to C drive"
 
-info "Kernel zip path: $OUTPUT_DIR/AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_${KERNEL_SUFFIX}_SuKiSu.zip"
-info "Image path: $OUTPUT_DIR/Image"
+info "Kernel zip path: C:/Kernel_Build/${DEVICE_NAME}/AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_${KERNEL_SUFFIX}_SuKiSu.zip"
+info "Image path: C:/Kernel_Build/${DEVICE_NAME}/Image"
+info "Please check the kernel zip and Image file in the C drive directory."
 info "Cleaning up all files from this build..."
 sudo rm -rf "$WORKSPACE" || error "Failed to delete workspace, maybe not created"
 info "Cleanup complete! Next run will re-download source and rebuild kernel."
