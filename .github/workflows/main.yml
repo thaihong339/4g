@@ -85,12 +85,15 @@ jobs:
           cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./common/ || true
           cp ../kernel_patches/next/syscall_hooks.patch ./common/ || true
           cp ../susfs4ksu/kernel_patches/fs/* ./common/fs/ || true
-          cp ../susfs4ksu/include/linux/susfs.h ./common/include/linux/ || true
 
-          if [[ ! -f ./common/include/linux/susfs.h ]]; then
-            echo "::error ::susfs.h not found after copy! Build cannot continue."
+          echo "Searching for susfs.h..."
+          SUSFS_HEADER=$(find ../susfs4ksu -name susfs.h | head -n 1)
+          if [[ -z "$SUSFS_HEADER" ]]; then
+            echo "::error ::susfs.h not found after searching! Build cannot continue."
             exit 1
           fi
+          echo "Found susfs.h at: $SUSFS_HEADER"
+          cp "$SUSFS_HEADER" ./common/include/linux/susfs.h
 
           if [[ "${ENABLE_LZ4KD}" == "true" ]]; then
             cp ../kernel_patches/001-lz4.patch ./common/ || true
