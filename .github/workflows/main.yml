@@ -140,6 +140,7 @@ jobs:
           CONFIG_TCP_CONG_BIC=n
           CONFIG_TCP_CONG_WESTWOOD=n
           CONFIG_TCP_CONG_HTCP=n
+          CONFIG_DEBUG_INFO_BTF=n
           EOF
           [[ "${ENABLE_KPM}" == "true" ]] && echo "CONFIG_KPM=y" >> "$DEFCONFIG"
           sed -i 's/check_defconfig//' ./common/build.config.gki
@@ -161,6 +162,7 @@ jobs:
             RUSTC="$RUSTC_PATH" PAHOLE="$PAHOLE_PATH" \
             LD=ld.lld HOSTLD=ld.lld \
             O=out KCFLAGS+=-O2 Image
+
           if [ ! -f out/arch/arm64/boot/Image ]; then
             echo "::error ::Kernel build failed, Image not found!"
             exit 1
@@ -180,8 +182,7 @@ jobs:
         run: |
           cd ~
           git clone -q https://github.com/thaihong339/AnyKernel3.git --depth=1
-          rm -rf ./AnyKernel3/.git
-          rm -f ./AnyKernel3/push.sh
+          rm -rf ./AnyKernel3/.git ./AnyKernel3/push.sh
           cp "$HOME/kernel_${DEVICE_NAME}/kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image" ./AnyKernel3/
           cd AnyKernel3
           zip -r "../AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_SuKiSu.zip" . -x "*.git*"
