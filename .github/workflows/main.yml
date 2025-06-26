@@ -16,7 +16,7 @@ jobs:
       CCACHE_MAXSIZE: 8G
 
     steps:
-      - name: Checkout (dummy)
+      - name: Checkout this repo
         uses: actions/checkout@v4
 
       - name: Install dependencies
@@ -43,6 +43,14 @@ jobs:
           repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8650 -m $REPO_MANIFEST --depth=1
           repo sync -c -j$(nproc) --no-tags
 
+      - name: Ensure kernel_platform exists
+        run: |
+          if [ ! -d ~/kernel_workspace/kernel_platform ]; then
+            echo "::error ::kernel_platform directory was not created. Please check your manifest and repo sync output."
+            ls -l ~/kernel_workspace
+            exit 1
+          fi
+
       - name: Clean dirty tags and ABI protections
         run: |
           cd ~/kernel_workspace/kernel_platform
@@ -50,9 +58,9 @@ jobs:
             rm $d/android/abi_gki_protected_exports_* 2>/dev/null || true
           done
           for f in common/scripts/setlocalversion msm-kernel/scripts/setlocalversion external/dtc/scripts/setlocalversion; do
-            sed -i 's/ -dirty//g' $f
-            grep -q 'res=.*s/-dirty' $f || sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' $f
-            sed -i '$s|echo "\$res"|echo "${KERNEL_SUFFIX}"|' $f
+            sed -i 's/ -dirty//g' $f || true
+            grep -q 'res=.*s/-dirty' $f || sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' $f || true
+            sed -i '$s|echo "\$res"|echo "${KERNEL_SUFFIX}"|' $f || true
           done
 
       - name: Setup SukiSU
@@ -70,21 +78,21 @@ jobs:
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1 || true
           git clone https://github.com/Xiaomichael/kernel_patches.git || true
           git clone https://github.com/SukiSU-Ultra/SukiSU_patch.git || true
-          cd kernel_workspace/kernel_platform
-          cp ../../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./common/
-          cp ../../kernel_patches/next/syscall_hooks.patch ./common/
-          cp ../../susfs4ksu/kernel_patches/fs/* ./common/fs/
-          cp ../../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
+          cd ~/kernel_workspace/kernel_platform
+          cp ../../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./common/ || true
+          cp ../../kernel_patches/next/syscall_hooks.patch ./common/ || true
+          cp ../../susfs4ksu/kernel_patches/fs/* ./common/fs/ || true
+          cp ../../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/ || true
           if [[ "${{ env.ENABLE_LZ4KD }}" == "true" ]]; then
-            cp ../../kernel_patches/001-lz4.patch ./common/
-            cp ../../kernel_patches/lz4armv8.S ./common/lib
-            cp ../../kernel_patches/002-zstd.patch ./common/
+            cp ../../kernel_patches/001-lz4.patch ./common/ || true
+            cp ../../kernel_patches/lz4armv8.S ./common/lib || true
+            cp ../../kernel_patches/002-zstd.patch ./common/ || true
           fi
           cd common
           patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch || true
-          cp ../../kernel_patches/69_hide_stuff.patch ./
-          patch -p1 -F 3 < 69_hide_stuff.patch
-          patch -p1 -F 3 < syscall_hooks.patch
+          cp ../../kernel_patches/69_hide_stuff.patch ./ || true
+          patch -p1 -F 3 < 69_hide_stuff.patch || true
+          patch -p1 -F 3 < syscall_hooks.patch || true
           if [[ "${{ env.ENABLE_LZ4KD }}" == "true" ]]; then
             git apply -p1 < 001-lz4.patch || true
             patch -p1 < 002-zstd.patch || true
