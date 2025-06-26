@@ -1,0 +1,18 @@
+name: Run ace5.sh
+
+on:
+  workflow_dispatch:  # Allows you to run it manually
+  push:               # Or on every push
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Make ace5.sh executable
+        run: chmod +x ace5.sh
+
+      - name: Run ace5.sh
+        run: ./ace5.sh
