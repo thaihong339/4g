@@ -1,36 +1,35 @@
-name: Build OnePlus Ace 5 Kernel
+name: Build OnePlus Ace 5 Kernel (ace5.sh converted)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-ace5:
     runs-on: ubuntu-22.04
-
     env:
       DEVICE_NAME: oneplus_ace5
       REPO_MANIFEST: oneplus_ace5.xml
-      KERNEL_SUFFIX: -android14-GHA
+      KERNEL_SUFFIX: -android14-TG@qdykernel
       ENABLE_KPM: "true"
       ENABLE_LZ4KD: "true"
       CCACHE_MAXSIZE: 8G
 
     steps:
-      - name: Checkout this repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3 git curl ccache flex bison libssl-dev libelf-dev bc zip build-essential
+          sudo apt-get install -y python3 git curl ccache flex bison libssl-dev libelf-dev bc zip build-essential gcc-aarch64-linux-gnu
 
       - name: Setup ccache
         run: |
-          export CCACHE_DIR=$HOME/.ccache_${DEVICE_NAME}
-          mkdir -p "$CCACHE_DIR"
-          ccache -M $CCACHE_MAXSIZE
+          echo "CCACHE_DIR=$HOME/.ccache_${DEVICE_NAME}" >> $GITHUB_ENV
+          mkdir -p "$HOME/.ccache_${DEVICE_NAME}"
+          ccache -M "$CCACHE_MAXSIZE"
 
-      - name: Download repo tool
+      - name: Install repo tool
         run: |
           curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo > ~/repo
           chmod a+x ~/repo
@@ -38,75 +37,82 @@ jobs:
 
       - name: Sync kernel source
         run: |
-          mkdir -p ~/kernel_workspace
-          cd ~/kernel_workspace
-          repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8650 -m $REPO_MANIFEST --depth=1
+          WORKSPACE="$HOME/kernel_${DEVICE_NAME}"
+          mkdir -p "$WORKSPACE/kernel_workspace"
+          cd "$WORKSPACE/kernel_workspace"
+          repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8650 -m "$REPO_MANIFEST" --depth=1
           repo sync -c -j$(nproc) --no-tags
 
       - name: Ensure kernel_platform exists
         run: |
-          if [ ! -d ~/kernel_workspace/kernel_platform ]; then
+          if [ ! -d "$HOME/kernel_${DEVICE_NAME}/kernel_workspace/kernel_platform" ]; then
             echo "::error ::kernel_platform directory was not created. Please check your manifest and repo sync output."
-            ls -l ~/kernel_workspace
+            ls -l "$HOME/kernel_${DEVICE_NAME}/kernel_workspace"
             exit 1
           fi
 
       - name: Clean dirty tags and ABI protections
         run: |
-          cd ~/kernel_workspace/kernel_platform
+          cd "$HOME/kernel_${DEVICE_NAME}/kernel_workspace/kernel_platform"
           for d in common msm-kernel; do
-            rm $d/android/abi_gki_protected_exports_* 2>/dev/null || true
+            rm -f "$d"/android/abi_gki_protected_exports_* || true
           done
           for f in common/scripts/setlocalversion msm-kernel/scripts/setlocalversion external/dtc/scripts/setlocalversion; do
-            sed -i 's/ -dirty//g' $f || true
-            grep -q 'res=.*s/-dirty' $f || sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' $f || true
-            sed -i '$s|echo "\$res"|echo "${KERNEL_SUFFIX}"|' $f || true
+            [ -f "$f" ] || continue
+            sed -i 's/ -dirty//g' "$f"
+            grep -q 'res=.*s/-dirty' "$f" || echo 'res=$(echo "$res" | sed '\''s/-dirty//g'\'')' >> "$f"
+            sed -i '$s|echo "\$res"|echo "${KERNEL_SUFFIX}"|' "$f"
           done
 
       - name: Setup SukiSU
         run: |
-          cd ~/kernel_workspace/kernel_platform
+          cd "$HOME/kernel_${DEVICE_NAME}/kernel_workspace/kernel_platform"
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
           cd KernelSU
+          git checkout main || true
           KSU_VERSION=$(expr $(git rev-list --count main) + 10700)
           sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile
-          echo "KSU_VERSION=$KSU_VERSION" >> $GITHUB_ENV
+          echo "KSU_VERSION=$KSU_VERSION" >> "$GITHUB_ENV"
 
       - name: Setup susfs and patches
         run: |
-          cd ~/kernel_workspace
+          cd "$HOME/kernel_${DEVICE_NAME}/kernel_workspace"
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1 || true
           git clone https://github.com/Xiaomichael/kernel_patches.git || true
           git clone https://github.com/SukiSU-Ultra/SukiSU_patch.git || true
-          cd ~/kernel_workspace/kernel_platform
-          cp ../../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./common/ || true
-          cp ../../kernel_patches/next/syscall_hooks.patch ./common/ || true
-          cp ../../susfs4ksu/kernel_patches/fs/* ./common/fs/ || true
-          cp ../../susfs4ksu/include/linux/susfs.h ./common/include/linux/ || true
+
+          cd kernel_platform
+          cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./common/ || true
+          cp ../kernel_patches/next/syscall_hooks.patch ./common/ || true
+          cp ../susfs4ksu/kernel_patches/fs/* ./common/fs/ || true
+          cp ../susfs4ksu/include/linux/susfs.h ./common/include/linux/ || true
+
           if [[ ! -f ./common/include/linux/susfs.h ]]; then
             echo "::error ::susfs.h not found after copy! Build cannot continue."
             exit 1
           fi
-          if [[ "${{ env.ENABLE_LZ4KD }}" == "true" ]]; then
-            cp ../../kernel_patches/001-lz4.patch ./common/ || true
-            cp ../../kernel_patches/lz4armv8.S ./common/lib || true
-            cp ../../kernel_patches/002-zstd.patch ./common/ || true
+
+          if [[ "${ENABLE_LZ4KD}" == "true" ]]; then
+            cp ../kernel_patches/001-lz4.patch ./common/ || true
+            cp ../kernel_patches/lz4armv8.S ./common/lib || true
+            cp ../kernel_patches/002-zstd.patch ./common/ || true
           fi
+
           cd common
-          patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch || true
+          patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch || exit 1
           cp ../../kernel_patches/69_hide_stuff.patch ./ || true
-          patch -p1 -F 3 < 69_hide_stuff.patch || true
-          patch -p1 -F 3 < syscall_hooks.patch || true
-          if [[ "${{ env.ENABLE_LZ4KD }}" == "true" ]]; then
-            git apply -p1 < 001-lz4.patch || true
-            patch -p1 < 002-zstd.patch || true
+          patch -p1 -F 3 < 69_hide_stuff.patch || exit 1
+          patch -p1 -F 3 < syscall_hooks.patch || exit 1
+          if [[ "${ENABLE_LZ4KD}" == "true" ]]; then
+            git apply -p1 < 001-lz4.patch || exit 1
+            patch -p1 < 002-zstd.patch || exit 1
           fi
 
       - name: Add SUSFS config
         run: |
-          cd ~/kernel_workspace/kernel_platform
+          cd "$HOME/kernel_${DEVICE_NAME}/kernel_workspace/kernel_platform"
           DEFCONFIG=./common/arch/arm64/configs/gki_defconfig
-          cat <<EOF >> "$DEFCONFIG"
+          grep -qxF 'CONFIG_KSU=y' "$DEFCONFIG" || cat <<EOF >> "$DEFCONFIG"
           CONFIG_KSU=y
           CONFIG_KSU_SUSFS_SUS_SU=n
           CONFIG_KSU_MANUAL_HOOK=y
@@ -132,35 +138,35 @@ jobs:
           CONFIG_TCP_CONG_WESTWOOD=n
           CONFIG_TCP_CONG_HTCP=n
           EOF
-          if [[ "${{ env.ENABLE_KPM }}" == "true" ]]; then
-            echo "CONFIG_KPM=y" >> "$DEFCONFIG"
-          fi
+          [[ "${ENABLE_KPM}" == "true" ]] && echo "CONFIG_KPM=y" >> "$DEFCONFIG"
           sed -i 's/check_defconfig//' ./common/build.config.gki
 
       - name: Build kernel
         run: |
-          cd ~/kernel_workspace/kernel_platform/common
-          export CLANG_PATH=~/kernel_workspace/kernel_platform/prebuilts/clang/host/linux-x86/clang-r487747c/bin
-          export RUSTC_PATH=~/kernel_workspace/kernel_platform/prebuilts/rust/linux-x86/1.73.0b/bin/rustc
-          export PAHOLE_PATH=~/kernel_workspace/kernel_platform/prebuilts/kernel-build-tools/linux-x86/bin/pahole
+          cd "$HOME/kernel_${DEVICE_NAME}/kernel_workspace/kernel_platform/common"
+          export CLANG_PATH="$HOME/kernel_${DEVICE_NAME}/kernel_workspace/kernel_platform/prebuilts/clang/host/linux-x86/clang-r487747c/bin"
+          export RUSTC_PATH="$HOME/kernel_${DEVICE_NAME}/kernel_workspace/kernel_platform/prebuilts/rust/linux-x86/1.73.0b/bin/rustc"
+          export PAHOLE_PATH="$HOME/kernel_${DEVICE_NAME}/kernel_workspace/kernel_platform/prebuilts/kernel-build-tools/linux-x86/bin/pahole"
           export PATH="$CLANG_PATH:/usr/lib/ccache:$PATH"
           make LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC=clang \
-            RUSTC="$RUSTC_PATH" \
-            PAHOLE="$PAHOLE_PATH" \
+            RUSTC="$RUSTC_PATH" PAHOLE="$PAHOLE_PATH" \
             LD=ld.lld HOSTLD=ld.lld \
             O=out KCFLAGS+=-O2 \
             CONFIG_LTO_CLANG=y CONFIG_LTO_CLANG_THIN=y CONFIG_LTO_CLANG_FULL=n CONFIG_LTO_NONE=n \
             gki_defconfig
           make -j$(nproc) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC=clang \
-            RUSTC="$RUSTC_PATH" \
-            PAHOLE="$PAHOLE_PATH" \
+            RUSTC="$RUSTC_PATH" PAHOLE="$PAHOLE_PATH" \
             LD=ld.lld HOSTLD=ld.lld \
             O=out KCFLAGS+=-O2 Image
+          if [ ! -f out/arch/arm64/boot/Image ]; then
+            echo "::error ::Kernel build failed, Image not found!"
+            exit 1
+          fi
 
       - name: Apply KPM patch (if enabled)
         if: env.ENABLE_KPM == 'true'
         run: |
-          cd ~/kernel_workspace/kernel_platform/common/out/arch/arm64/boot
+          cd "$HOME/kernel_${DEVICE_NAME}/kernel_workspace/kernel_platform/common/out/arch/arm64/boot"
           curl -LO https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.12.0/patch_linux
           chmod +x patch_linux
           ./patch_linux
@@ -170,12 +176,12 @@ jobs:
       - name: Package with AnyKernel3
         run: |
           cd ~
-          git clone -q https://github.com/thaihong339/AnyKernel3.git
+          git clone -q https://github.com/thaihong339/AnyKernel3.git --depth=1
           rm -rf ./AnyKernel3/.git
           rm -f ./AnyKernel3/push.sh
-          cp ~/kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image ./AnyKernel3/
+          cp "$HOME/kernel_${DEVICE_NAME}/kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image" ./AnyKernel3/
           cd AnyKernel3
-          zip -r "../AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_SuKiSu.zip" ./*
+          zip -r "../AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_SuKiSu.zip" . -x "*.git*"
 
       - name: Upload kernel zip artifact
         uses: actions/upload-artifact@v4
@@ -187,4 +193,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Image_${{ env.DEVICE_NAME }}
-          path: kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image
+          path: kernel_oneplus_ace5/kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image
