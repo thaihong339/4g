@@ -25,3 +25,8 @@ jobs:
         run: |
           chmod +x ./ace5.sh
           ./ace5.sh
+
+      - name: Upload kernel artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: kernel
