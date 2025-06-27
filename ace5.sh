@@ -10,7 +10,7 @@ error() {
 }
 
 # Parameter settings
-KERNEL_SUFFIX="-android14-@hipuu"
+KERNEL_SUFFIX="-@hipuu"
 ENABLE_KPM=true
 ENABLE_LZ4KD=true
 
