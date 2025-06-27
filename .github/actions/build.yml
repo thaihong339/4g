@@ -1,0 +1,33 @@
+name: Build Kernel
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up environment
+        run: |
+          sudo apt update
+          sudo apt install -y python3 git curl ccache flex bison libssl-dev libelf-dev bc zip
+
+      - name: Run kernel build script
+        run: |
+          chmod +x ./ace5.sh
+          ./ace5.sh
+
+      - name: Upload kernel artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel
+          path: output/
