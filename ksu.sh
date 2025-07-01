@@ -73,6 +73,7 @@ fi
 cp -v susfs4ksu/kernel_patches/include/linux/susfs.h kernel_platform/common/include/linux/ || error "Failed to copy susfs.h"
 cp -v susfs4ksu/kernel_patches/include/linux/susfs_def.h kernel_platform/common/include/linux/ || error "Failed to copy susfs_def.h"
 cp -rv susfs4ksu/kernel_patches/fs/* kernel_platform/common/fs/ || error "Failed to copy susfs source files"
+cp -v susfs4ksu/kernel_patches/include/linux/sched/susfs_task.h kernel_platform/common/include/linux/sched/ || error "Failed to copy susfs_task.h"
 
 cd kernel_platform/KernelSU || error "Failed to enter KernelSU directory"
 KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) + 10700)
