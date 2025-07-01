@@ -60,16 +60,18 @@ for f in kernel_platform/{common,msm-kernel,external/dtc}/scripts/setlocalversio
   sed -i 's/ -dirty//g' "$f"
   grep -q 'res=.*s/-dirty' "$f" || sed -i '$i res=$(echo "$res" | sed '"'"'s/-dirty//g'"'"')' "$f"
   sed -i '$s|echo "$res"|echo "$KERNEL_SUFFIX"|' "$f"
+  grep -q 'res=.*echo' "$f" || echo "res=\"\"" >> "$f"
 done
 
 cd kernel_platform || error "Failed to enter kernel_platform"
 curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
 
-# Clone and apply susfs manually
 cd "$KERNEL_WORKSPACE" || error "Failed to return to workspace"
-git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1 || info "susfs4ksu already exists"
-cp -r susfs4ksu/include/linux/* kernel_platform/common/include/linux/
-cp -r susfs4ksu/fs/* kernel_platform/common/fs/
+if [ ! -d susfs4ksu ]; then
+  git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1 || error "Failed to clone susfs4ksu"
+fi
+cp -v susfs4ksu/include/linux/susfs.h kernel_platform/common/include/linux/ || error "Failed to copy susfs.h"
+cp -rv susfs4ksu/fs/* kernel_platform/common/fs/ || error "Failed to copy susfs source files"
 
 cd kernel_platform/KernelSU || error "Failed to enter KernelSU directory"
 KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) + 10700)
@@ -83,9 +85,19 @@ cat <<EOF >> "$DEFCONFIG"
 CONFIG_KSU=y
 CONFIG_KSU_MANUAL_HOOK=y
 CONFIG_KSU_SUSFS=y
+CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
 CONFIG_KSU_SUSFS_SUS_PATH=y
+CONFIG_KSU_SUSFS_SUS_MOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
+CONFIG_KSU_SUSFS_SUS_KSTAT=y
+CONFIG_KSU_SUSFS_TRY_UMOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y
 CONFIG_KSU_SUSFS_SPOOF_UNAME=y
 CONFIG_KSU_SUSFS_ENABLE_LOG=y
+CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
+CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
+CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
 CONFIG_TCP_CONG_ADVANCED=y
 CONFIG_TCP_CONG_BBR=y
 CONFIG_NET_SCH_FQ=y
