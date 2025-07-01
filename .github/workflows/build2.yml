@@ -7,7 +7,7 @@ on:
   pull_request:
     branches:
       - main
-  workflow_dispatch:  # ← Add this line to enable the "Run workflow" button
+  workflow_dispatch:
 
 jobs:
   build:
@@ -24,6 +24,7 @@ jobs:
 
       - name: Run kernel build script
         run: |
+          set -e
           chmod +x ./ksu.sh
           ./ksu.sh
 
