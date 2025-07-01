@@ -1,13 +1,7 @@
 name: Build Kernel
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:  # ← Add this line to enable the "Run workflow" button
+  workflow_dispatch:  # Workflow này chỉ chạy khi được kích hoạt thủ công
 
 jobs:
   build:
