@@ -70,8 +70,8 @@ cd "$KERNEL_WORKSPACE" || error "Failed to return to workspace"
 if [ ! -d susfs4ksu ]; then
   git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1 || error "Failed to clone susfs4ksu"
 fi
-cp -v susfs4ksu/include/linux/susfs.h kernel_platform/common/include/linux/ || error "Failed to copy susfs.h"
-cp -rv susfs4ksu/fs/* kernel_platform/common/fs/ || error "Failed to copy susfs source files"
+cp -v susfs4ksu/kernel_patches/include/linux/susfs.h kernel_platform/common/include/linux/ || error "Failed to copy susfs.h"
+cp -rv susfs4ksu/kernel_patches/fs/* kernel_platform/common/fs/ || error "Failed to copy susfs source files"
 
 cd kernel_platform/KernelSU || error "Failed to enter KernelSU directory"
 KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) + 10700)
@@ -101,11 +101,8 @@ CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
 CONFIG_TCP_CONG_ADVANCED=y
 CONFIG_TCP_CONG_BBR=y
 CONFIG_NET_SCH_FQ=y
+CONFIG_KPM=y
 EOF
-
-if [ "${ENABLE_KPM}" = "true" ]; then
-  echo "CONFIG_KPM=y" >> "$DEFCONFIG"
-fi
 
 sed -i 's/check_defconfig//' ./common/build.config.gki
 
