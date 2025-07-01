@@ -3,7 +3,6 @@
 info() {
   echo "[INFO] $1"
 }
-
 error() {
   echo "[ERROR] $1"
   exit 1
@@ -65,11 +64,17 @@ done
 
 cd kernel_platform || error "Failed to enter kernel_platform"
 curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
-cd KernelSU || error "Failed to enter KernelSU directory"
+
+# Clone and apply susfs manually
+cd "$KERNEL_WORKSPACE" || error "Failed to return to workspace"
+git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1 || info "susfs4ksu already exists"
+cp -r susfs4ksu/include/linux/* kernel_platform/common/include/linux/
+cp -r susfs4ksu/fs/* kernel_platform/common/fs/
+
+cd kernel_platform/KernelSU || error "Failed to enter KernelSU directory"
 KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) + 10700)
 export KSU_VERSION=$KSU_VERSION
 sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile || error "Failed to modify KernelSU version"
-
 echo "#define VERSION_NAME \"v${KSU_VERSION}@hipuu\"" > include/version_name.h
 grep -q 'version_name.h' kernel/Makefile || sed -i '1i -include include/version_name.h' kernel/Makefile
 
@@ -78,19 +83,9 @@ cat <<EOF >> "$DEFCONFIG"
 CONFIG_KSU=y
 CONFIG_KSU_MANUAL_HOOK=y
 CONFIG_KSU_SUSFS=y
-CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
 CONFIG_KSU_SUSFS_SUS_PATH=y
-CONFIG_KSU_SUSFS_SUS_MOUNT=y
-CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
-CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
-CONFIG_KSU_SUSFS_SUS_KSTAT=y
-CONFIG_KSU_SUSFS_TRY_UMOUNT=y
-CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y
 CONFIG_KSU_SUSFS_SPOOF_UNAME=y
 CONFIG_KSU_SUSFS_ENABLE_LOG=y
-CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
-CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
-CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
 CONFIG_TCP_CONG_ADVANCED=y
 CONFIG_TCP_CONG_BBR=y
 CONFIG_NET_SCH_FQ=y
