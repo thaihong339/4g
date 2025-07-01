@@ -1,6 +1,8 @@
 #!/bin/bash
 
-info() { echo "[INFO] $1" } error() { echo "[ERROR] $1" exit 1 }
+info() { echo "[INFO] $1" }
+
+error() { echo "[ERROR] $1" exit 1 }
 
 KERNEL_SUFFIX="-android14-@hipuu" ENABLE_KPM=true DEVICE_NAME="oneplus_ace5" REPO_MANIFEST="oneplus_ace5.xml"
 
@@ -18,27 +20,21 @@ KERNEL_WORKSPACE="$WORKSPACE/kernel_workspace" mkdir -p "$KERNEL_WORKSPACE" || e
 
 info "Initializing repo and syncing source code..." repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8650 -m "$REPO_MANIFEST" --depth=1 || error "Repo initialization failed" repo --trace sync -c -j$(nproc --all) --no-tags || error "Repo sync failed"
 
-info "Cleaning dirty tags and ABI protections..." for f in kernel_platform/{common,msm-kernel,external/dtc}/scripts/setlocalversion; do sed -i 's/ -dirty//g' "$f" grep -q 'res=.*s/-dirty' "$f" || sed -i '$i res=$(echo "$res" | sed '"'"'s/-dirty//g'"'"')' "$f" sed -i '$s|echo "$res"|echo "$KERNEL_SUFFIX"|' "$f" done
+info "Cleaning dirty tags and ABI protections..." for f in kernel_platform/{common,msm-kernel,external/dtc}/scripts/setlocalversion; do sed -i 's/ -dirty//g' "$f" grep -q 'res=.*s/-dirty' "$f" || sed -i '$i res=$(echo "$res" | sed '"'"'s/-dirty//g'"'"')' "$f" sed -i '$s|echo "$res"|echo "$KERNEL_SUFFIX"|' "$f" fi
 
-cd kernel_platform || error "Failed to enter kernel_platform" curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
+cd kernel_platform || error "Failed to enter kernel_platform" curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main cd KernelSU || error "Failed to enter KernelSU directory" KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) + 10700) export KSU_VERSION=$KSU_VERSION sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile || error "Failed to modify KernelSU version"
 
-cd KernelSU || error "Failed to enter KernelSU directory" KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) + 10700) export KSU_VERSION=$KSU_VERSION sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile || error "Failed to modify KernelSU version" echo "#define VERSION_NAME "v${KSU_VERSION}@hipuu"" > include/version_name.h grep -q 'version_name.h' kernel/Makefile || sed -i '1i -include include/version_name.h' kernel/Makefile
+echo "#define VERSION_NAME "v${KSU_VERSION}@hipuu"" > include/version_name.h grep -q 'version_name.h' kernel/Makefile || sed -i '1i -include include/version_name.h' kernel/Makefile
 
-cd "$KERNEL_WORKSPACE" git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1 || info "susfs4ksu already exists" git clone https://github.com/Xiaomichael/kernel_patches.git || info "kernel_patches already exists" git clone -q https://github.com/SukiSU-Ultra/SukiSU_patch.git || info "SukiSU_patch already exists"
+DEFCONFIG=./common/arch/arm64/configs/gki_defconfig cat <<EOF >> "$DEFCONFIG" CONFIG_KSU=y CONFIG_KSU_MANUAL_HOOK=y CONFIG_KSU_SUSFS=y CONFIG_KSU_SUSFS_SUS_PATH=y CONFIG_KSU_SUSFS_SPOOF_UNAME=y CONFIG_KSU_SUSFS_ENABLE_LOG=y CONFIG_KSU_SUSFS_TRY_UMOUNT=y CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y CONFIG_KSU_SUSFS_SUS_KSTAT=y CONFIG_KSU_SUSFS_OPEN_REDIRECT=y CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y CONFIG_KSU_SUSFS_SUS_MOUNT=y CONFIG_TCP_CONG_ADVANCED=y CONFIG_TCP_CONG_BBR=y CONFIG_NET_SCH_FQ=y EOF
 
-cd kernel_platform cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./common/ cp ../kernel_patches/next/syscall_hooks.patch ./common/ cp ../susfs4ksu/kernel_patches/fs/* ./common/fs/ cp ../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/ cp ../kernel_patches/001-lz4.patch ./common/ cp ../kernel_patches/lz4armv8.S ./common/lib cp ../kernel_patches/002-zstd.patch ./common/
-
-cd common git apply -p1 < 001-lz4.patch || true patch -p1 < 002-zstd.patch || true patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch || true cp ../../kernel_patches/69_hide_stuff.patch ./ patch -p1 -F 3 < 69_hide_stuff.patch || true patch -p1 -F 3 < syscall_hooks.patch || true
-
-cd ..
-
-DEFCONFIG=./common/arch/arm64/configs/gki_defconfig cat <<EOF >> "$DEFCONFIG" CONFIG_KSU=y CONFIG_KSU_SUSFS=y CONFIG_KSU_SUSFS_SUS_PATH=y CONFIG_KSU_SUSFS_MANUAL_HOOK=y CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y CONFIG_KSU_SUSFS_SUS_KSTAT=y CONFIG_KSU_SUSFS_TRY_UMOUNT=y CONFIG_KSU_SUSFS_SPOOF_UNAME=y CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y CONFIG_KSU_SUSFS_ENABLE_LOG=y CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y CONFIG_KSU_SUSFS_OPEN_REDIRECT=y CONFIG_TCP_CONG_ADVANCED=y CONFIG_TCP_CONG_BBR=y CONFIG_NET_SCH_FQ=y CONFIG_KPM=y EOF
+if [ "${ENABLE_KPM}" = "true" ]; then echo "CONFIG_KPM=y" >> "$DEFCONFIG" fi
 
 sed -i 's/check_defconfig//' ./common/build.config.gki
 
 export CLANG_PATH="$KERNEL_WORKSPACE/kernel_platform/prebuilts/clang/host/linux-x86/clang-r487747c/bin" export RUSTC_PATH="$KERNEL_WORKSPACE/kernel_platform/prebuilts/rust/linux-x86/1.73.0b/bin/rustc" export PAHOLE_PATH="$KERNEL_WORKSPACE/kernel_platform/prebuilts/kernel-build-tools/linux-x86/bin/pahole" export PATH="$CLANG_PATH:/usr/lib/ccache:$PATH"
 
-cd common make LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC=clang 
+cd $KERNEL_WORKSPACE/kernel_platform/common make LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC=clang 
 RUSTC="$RUSTC_PATH" PAHOLE="$PAHOLE_PATH" LD=ld.lld HOSTLD=ld.lld 
 O=out KCFLAGS+=-O2 gki_defconfig make -j$(nproc) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC=clang 
 RUSTC="$RUSTC_PATH" PAHOLE="$PAHOLE_PATH" LD=ld.lld HOSTLD=ld.lld 
