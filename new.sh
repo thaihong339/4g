@@ -100,8 +100,6 @@ else
     info "repo tool already installed, skipping installation"
 fi
 
----
-
 ## Source Code Management
 
 # Create source directory
@@ -115,8 +113,6 @@ cd "$KERNEL_WORKSPACE" || error "Failed to enter kernel_workspace directory"
 info "Initializing repo and syncing source code..."
 repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8650 -m "$REPO_MANIFEST" --depth=1 || error "repo initialization failed"
 repo --trace sync -c -j$(nproc --all) --no-tags || error "repo sync failed"
-
----
 
 ## Core Build Steps
 
@@ -257,7 +253,7 @@ mv oImage Image || error "Failed to replace Image"
 # Create AnyKernel3 package
 info "Creating AnyKernel3 package..."
 cd "$WORKSPACE" || error "Failed to return to working directory"
-git clone -q https://github.com/thaihong339/AnyKernel3.git --depth=1 || info "AnyKernel3 already exists"
+git clone -q https://github.com/showdo/AnyKernel3.git --depth=1 || info "AnyKernel3 already exists"
 rm -rf ./AnyKernel3/.git
 rm -f ./AnyKernel3/push.sh
 cp "$KERNEL_WORKSPACE/kernel_platform/common/out/arch/arm64/boot/Image" ./AnyKernel3/ || error "Failed to copy Image"
@@ -269,7 +265,7 @@ zip -r "AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_SuKiSu.zip" ./* || error "Packa
 # Create output directory for Windows C drive (via WSL)
 # Removed Image copy, only AnyKernel3.zip will be copied.
 WIN_OUTPUT_DIR="/mnt/c/Kernel_Build/${DEVICE_NAME}/"
-mkdir -p "$WIN_OUTPUT_DIR" || error "Failed to create Windows directory, C drive might not be mounted. Will save to Linux directory: $WORKSPACE/AnyKernel3/AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_SuKiSu.zip"
+mkdir -p "$WIN_OUTPUT_DIR" || error "Failed to create Windows directory, C drive might not be mounted. Will save to Linux directory:$WORKSPACE/AnyKernel3/AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_SuKiSu.zip"
 
 cp "$WORKSPACE/AnyKernel3/AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_SuKiSu.zip" "$WIN_OUTPUT_DIR/"
 
