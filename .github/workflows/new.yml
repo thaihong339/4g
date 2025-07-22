@@ -1,95 +1,105 @@
 name: Android Kernel Build
+
 on:
   workflow_dispatch:
     inputs:
       device_choice:
-        description: 'Select the device model to compile'
+        description: '📱 Select the device model to compile'
         required: true
         default: '1'
         type: choice
         options:
-          - '1'
-          - '2'
-          - '3'
+          - '1 (OnePlus Ace 5)'
+          - '2 (OnePlus 12)'
+          - '3 (OnePlus Pad Pro)'
+
       kernel_suffix:
-        description: 'Kernel name modification (can be Chinese or emoji, leave blank for default)'
+        description: '🔧 Kernel name modification (Chinese or emoji allowed, leave blank for default)'
         required: false
         default: ''
         type: string
+
       enable_kpm:
-        description: 'Enable KMP?'
+        description: '⚙️ Enable KMP?'
         required: true
         default: true
         type: boolean
+
       enable_lz4:
-        description: 'Enable lz4+zstd?'
+        description: '📦 Enable LZ4+ZSTD compression?'
         required: true
         default: true
         type: boolean
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Free up disk space
-      run: |
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /opt/ghc
-        sudo rm -rf "/usr/local/share/boost"
-        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-        df -h
-    - name: Set up build environment
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y python3 git curl ccache flex bison libssl-dev libelf-dev bc zip
-    - name: Make build script executable
-      run: chmod +x ./build_kernel.sh
-    - name: Run kernel build script
-      env:
-        DEVICE_CHOICE: ${{ github.event.inputs.device_choice }}
-        KERNEL_SUFFIX: ${{ github.event.inputs.kernel_suffix }}
-        ENABLE_KMP: ${{ github.event.inputs.enable_kmp }}
-        ENABLE_LZ4: ${{ github.event.inputs.enable_lz4 }}
-      run: |
-        # Create input responses for the script
-        echo "$DEVICE_CHOICE" > input.txt
-        if [ -n "$KERNEL_SUFFIX" ]; then
-          echo "$KERNEL_SUFFIX" >> input.txt
-        else
-          echo "" >> input.txt
-        fi
-        if [ "$ENABLE_KMP" = "true" ]; then
-          echo "y" >> input.txt
-        else
-          echo "n" >> input.txt
-        fi
-        if [ "$ENABLE_LZ4" = "true" ]; then
-          echo "y" >> input.txt
-        else
-          echo "n" >> input.txt
-        fi
-        # Run the script with input
-        ./build_kernel.sh < input.txt
-    - name: Upload kernel artifacts
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: kernel-build-${{ github.event.inputs.device_choice }}-${{ github.run_number }}
-        path: |
-          /home/runner/kernel_*/AnyKernel3/*.zip
-          /home/runner/kernel_*/kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image
-        retention-days: 30
-    - name: Display build summary
-      run: |
-        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
-        echo "- **Device Choice**: ${{ github.event.inputs.device_choice }}" >> $GITHUB_STEP_SUMMARY
-        case ${{ github.event.inputs.device_choice }} in
-          1) echo "- **Device**: OnePlus Ace 5" >> $GITHUB_STEP_SUMMARY ;;
-          2) echo "- **Device**: OnePlus 12" >> $GITHUB_STEP_SUMMARY ;;
-          3) echo "- **Device**: OnePlus Pad Pro" >> $GITHUB_STEP_SUMMARY ;;
-        esac
-        echo "- **Kernel Suffix**: ${{ github.event.inputs.kernel_suffix || 'Default' }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **KMP Enabled**: ${{ github.event.inputs.enable_kmp }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **LZ4+ZSTD Enabled**: ${{ github.event.inputs.enable_lz4 }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Build Time**: $(date)" >> $GITHUB_STEP_SUMMARY
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧹 Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
+      - name: 🛠 Set up build environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 git curl ccache flex bison libssl-dev libelf-dev bc zip
+
+      - name: 🔓 Make build script executable
+        run: chmod +x ./build_kernel.sh
+
+      - name: 🚀 Run kernel build script
+        env:
+          RAW_DEVICE_CHOICE: ${{ github.event.inputs.device_choice }}
+          KERNEL_SUFFIX: ${{ github.event.inputs.kernel_suffix }}
+          ENABLE_KMP: ${{ github.event.inputs.enable_kpm }}
+          ENABLE_LZ4: ${{ github.event.inputs.enable_lz4 }}
+        run: |
+          # Extract raw choice number (e.g., from '1 (OnePlus Ace 5)')
+          DEVICE_CHOICE=$(echo "$RAW_DEVICE_CHOICE" | cut -d' ' -f1)
+
+          echo "$DEVICE_CHOICE" > input.txt
+
+          if [ -n "$KERNEL_SUFFIX" ]; then
+            echo "$KERNEL_SUFFIX" >> input.txt
+          else
+            echo "" >> input.txt
+          fi
+
+          [ "$ENABLE_KMP" = "true" ] && echo "y" >> input.txt || echo "n" >> input.txt
+          [ "$ENABLE_LZ4" = "true" ] && echo "y" >> input.txt || echo "n" >> input.txt
+
+          ./build_kernel.sh < input.txt
+
+      - name: 📤 Upload kernel artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kernel-build-${{ github.run_number }}
+          path: |
+            /home/runner/kernel_*/AnyKernel3/*.zip
+            /home/runner/kernel_*/kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image
+          retention-days: 30
+
+      - name: 📄 Display build summary
+        run: |
+          RAW_CHOICE="${{ github.event.inputs.device_choice }}"
+          DEVICE_NUM=$(echo "$RAW_CHOICE" | cut -d' ' -f1)
+          echo "## 📝 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Device Choice**: $RAW_CHOICE" >> $GITHUB_STEP_SUMMARY
+          case "$DEVICE_NUM" in
+            1) echo "- **Device**: OnePlus Ace 5" >> $GITHUB_STEP_SUMMARY ;;
+            2) echo "- **Device**: OnePlus 12" >> $GITHUB_STEP_SUMMARY ;;
+            3) echo "- **Device**: OnePlus Pad Pro" >> $GITHUB_STEP_SUMMARY ;;
+          esac
+          echo "- **Kernel Suffix**: ${{ github.event.inputs.kernel_suffix || 'Default' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **KMP Enabled**: ${{ github.event.inputs.enable_kpm }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **LZ4+ZSTD Enabled**: ${{ github.event.inputs.enable_lz4 }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Time**: $(date)" >> $GITHUB_STEP_SUMMARY
