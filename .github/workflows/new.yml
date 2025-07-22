@@ -1,10 +1,9 @@
 name: Android Kernel Build
-
 on:
   workflow_dispatch:
     inputs:
       device_choice:
-        description: '选择要编译的机型'
+        description: 'Select the device model to compile'
         required: true
         default: '1'
         type: choice
@@ -12,33 +11,27 @@ on:
           - '1'
           - '2'
           - '3'
-      
       kernel_suffix:
-        description: '内核名称修改 (可改中文和emoji, 留空使用默认)'
+        description: 'Kernel name modification (can be Chinese or emoji, leave blank for default)'
         required: false
         default: ''
         type: string
-      
       enable_kpm:
-        description: '是否启用KMP?'
+        description: 'Enable KMP?'
         required: true
         default: true
         type: boolean
-      
       enable_lz4:
-        description: '是否启用lz4+zstd?'
+        description: 'Enable lz4+zstd?'
         required: true
         default: true
         type: boolean
-
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-    
     - name: Free up disk space
       run: |
         sudo rm -rf /usr/share/dotnet
@@ -46,15 +39,12 @@ jobs:
         sudo rm -rf "/usr/local/share/boost"
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
         df -h
-    
     - name: Set up build environment
       run: |
         sudo apt-get update
         sudo apt-get install -y python3 git curl ccache flex bison libssl-dev libelf-dev bc zip
-    
     - name: Make build script executable
       run: chmod +x ./build_kernel.sh
-    
     - name: Run kernel build script
       env:
         DEVICE_CHOICE: ${{ github.event.inputs.device_choice }}
@@ -69,22 +59,18 @@ jobs:
         else
           echo "" >> input.txt
         fi
-        
         if [ "$ENABLE_KMP" = "true" ]; then
           echo "y" >> input.txt
         else
           echo "n" >> input.txt
         fi
-        
         if [ "$ENABLE_LZ4" = "true" ]; then
           echo "y" >> input.txt
         else
           echo "n" >> input.txt
         fi
-        
         # Run the script with input
         ./build_kernel.sh < input.txt
-    
     - name: Upload kernel artifacts
       uses: actions/upload-artifact@v4
       if: always()
@@ -94,15 +80,14 @@ jobs:
           /home/runner/kernel_*/AnyKernel3/*.zip
           /home/runner/kernel_*/kernel_workspace/kernel_platform/common/out/arch/arm64/boot/Image
         retention-days: 30
-    
     - name: Display build summary
       run: |
         echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
         echo "- **Device Choice**: ${{ github.event.inputs.device_choice }}" >> $GITHUB_STEP_SUMMARY
         case ${{ github.event.inputs.device_choice }} in
-          1) echo "- **Device**: 一加 Ace 5" >> $GITHUB_STEP_SUMMARY ;;
-          2) echo "- **Device**: 一加 12" >> $GITHUB_STEP_SUMMARY ;;
-          3) echo "- **Device**: 一加 平板Pro" >> $GITHUB_STEP_SUMMARY ;;
+          1) echo "- **Device**: OnePlus Ace 5" >> $GITHUB_STEP_SUMMARY ;;
+          2) echo "- **Device**: OnePlus 12" >> $GITHUB_STEP_SUMMARY ;;
+          3) echo "- **Device**: OnePlus Pad Pro" >> $GITHUB_STEP_SUMMARY ;;
         esac
         echo "- **Kernel Suffix**: ${{ github.event.inputs.kernel_suffix || 'Default' }}" >> $GITHUB_STEP_SUMMARY
         echo "- **KMP Enabled**: ${{ github.event.inputs.enable_kmp }}" >> $GITHUB_STEP_SUMMARY
