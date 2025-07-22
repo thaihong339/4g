@@ -1,4 +1,4 @@
-name: Build Kernel
+name: new build
 
 on:
   workflow_dispatch:  # Workflow này chỉ chạy khi được kích hoạt thủ công
