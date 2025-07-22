@@ -20,7 +20,7 @@ on:
         type: string
 
       enable_kpm:
-        description: '⚙️ Enable KMP?'
+        description: '⚙️ Enable KPM?'
         required: true
         default: true
         type: boolean
