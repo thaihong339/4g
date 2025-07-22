@@ -53,7 +53,7 @@ jobs:
           sudo apt-get install -y python3 git curl ccache flex bison libssl-dev libelf-dev bc zip
 
       - name: 🔓 Make build script executable
-        run: chmod +x ./build_kernel.sh
+        run: chmod +x ./new.sh
 
       - name: 🚀 Run kernel build script
         env:
@@ -76,7 +76,7 @@ jobs:
           [ "$ENABLE_KMP" = "true" ] && echo "y" >> input.txt || echo "n" >> input.txt
           [ "$ENABLE_LZ4" = "true" ] && echo "y" >> input.txt || echo "n" >> input.txt
 
-          ./build_kernel.sh < input.txt
+          ./new.sh < input.txt
 
       - name: 📤 Upload kernel artifacts
         uses: actions/upload-artifact@v4
