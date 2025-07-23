@@ -1,4 +1,4 @@
-name: Build Kernel
+name: Build Kernel no KPM
 
 on:
   workflow_dispatch:  # Workflow này chỉ chạy khi được kích hoạt thủ công
@@ -18,8 +18,8 @@ jobs:
 
       - name: Run kernel build script
         run: |
-          chmod +x ./ace5.sh
-          ./ace5.sh
+          chmod +x ./ace5_no_kpm.sh
+          ./ace5_no_kpm.sh
 
       - name: Upload kernel artifacts
         uses: actions/upload-artifact@v4
