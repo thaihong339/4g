@@ -11,7 +11,7 @@ error() {
 
 # Parameter settings
 KERNEL_SUFFIX="-@hipuu"
-ENABLE_KPM=true
+ENABLE_KPM=false
 ENABLE_LZ4KD=true
 
 # Device selection (fixed)
@@ -254,8 +254,6 @@ mkdir -p "$OUTPUT_DIR" || error "Failed to create output directory"
 
 # Copy Image and AnyKernel3 package
 cp "$WORKSPACE/AnyKernel3/AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_SuKiSu.zip" "$OUTPUT_DIR/"
-cp "$KERNEL_WORKSPACE/kernel_platform/common/out/arch/arm64/boot/Image" "$OUTPUT_DIR/"
 
 info "Kernel package path: $OUTPUT_DIR/AnyKernel3_${KSU_VERSION}_${DEVICE_NAME}_SuKiSu.zip"
-info "Image path: $OUTPUT_DIR/Image"
 info "Build complete. Artifacts are in $OUTPUT_DIR"
